@@ -71,13 +71,7 @@ function App() {
     setEdges((prevEdges) => prevEdges.filter((edge) => edge.id !== edgeId))
   }
 
-  const rankedResponse = useMemo(() => {
-    if (!result) {
-      return null
-    }
-    const sortedScores = [...result.scores].sort((a, b) => b.score - a.score)
-    return { ...result, scores: sortedScores }
-  }, [result])
+  const rankedResponse = useMemo(() => result, [result])
 
   const canEvaluate = nodes.length > 0 && !isEvaluating
 
@@ -166,7 +160,6 @@ function App() {
             {!nodes.length && (
               <p className="status neutral">Add at least one node to evaluate.</p>
             )}
-            {requestError && <p className="status error">{requestError}</p>}
           </section>
         </div>
         <section>
