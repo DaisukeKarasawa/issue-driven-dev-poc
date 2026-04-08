@@ -27,7 +27,7 @@ export function NodeEditor({ nodes, onAdd, onUpdate, onDelete }: NodeEditorProps
                 <input
                   id={`node-id-${node.id}`}
                   value={node.id}
-                  onChange={(event) => onUpdate(node.id, { id: event.target.value })}
+                  readOnly
                   placeholder="unique-node-id"
                 />
               </div>

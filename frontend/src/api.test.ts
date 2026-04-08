@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { evaluateGraph } from './api'
 import type { EvaluateRequest } from './types'
 
@@ -14,6 +14,8 @@ const payload: EvaluateRequest = {
 }
 
 describe('evaluateGraph', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
   it('throws API error message from backend', async () => {
     vi.stubGlobal(
       'fetch',

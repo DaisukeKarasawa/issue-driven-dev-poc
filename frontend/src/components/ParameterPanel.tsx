@@ -59,12 +59,13 @@ export function ParameterPanel({ params, onChange }: ParameterPanelProps) {
           <input
             type="number"
             min={0.00001}
+            max={1}
             step={0.0001}
             value={params.epsilon}
             onChange={(event) =>
               onChange({
                 ...params,
-                epsilon: numberValue(event.target.value, params.epsilon),
+                epsilon: Math.min(numberValue(event.target.value, params.epsilon), 1),
               })
             }
           />

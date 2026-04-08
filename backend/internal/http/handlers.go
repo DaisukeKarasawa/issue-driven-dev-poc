@@ -2,7 +2,6 @@ package httpapi
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 
@@ -41,12 +40,6 @@ func (h *Handlers) Evaluate(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if validationErr, ok := eval.IsValidationError(err); ok {
 			writeError(w, http.StatusBadRequest, "graph validation failed", validationErr.Messages)
-			return
-		}
-
-		var syntaxErr *json.SyntaxError
-		if errors.As(err, &syntaxErr) {
-			writeError(w, http.StatusBadRequest, "invalid JSON syntax", []string{fmt.Sprintf("offset: %d", syntaxErr.Offset)})
 			return
 		}
 
