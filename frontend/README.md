@@ -12,6 +12,15 @@ npm run test
 npm run build
 ```
 
+## E2E (Playwright)
+
+Requires the backend on `http://localhost:8080` and the Vite dev server on `http://localhost:5173`.
+
+```bash
+npx playwright install chromium
+npm run test:e2e
+```
+
 ## Runtime notes
 
 - Dev server runs at `http://localhost:5173`.
