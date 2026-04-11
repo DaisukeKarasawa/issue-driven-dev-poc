@@ -19,6 +19,8 @@ Requires the backend on `http://localhost:8080` and the Vite dev server on `http
 ```bash
 npx playwright install chromium
 npm run test:e2e
+# Full UI walkthrough (longer video; requires backend + dev server)
+npm run test:e2e -- e2e/full-feature-walkthrough.spec.ts
 ```
 
 ## Runtime notes
