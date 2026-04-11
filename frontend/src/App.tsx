@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import './App.css'
 import { EvaluateAPIError, evaluateGraph } from './api'
 import { EdgeEditor } from './components/EdgeEditor'
@@ -44,16 +44,6 @@ function App() {
     setNodes((prevNodes) =>
       prevNodes.map((node) => (node.id === targetId ? { ...node, ...patch } : node)),
     )
-
-    if (patch.id && patch.id !== targetId) {
-      setEdges((prevEdges) =>
-        prevEdges.map((edge) => ({
-          ...edge,
-          from: edge.from === targetId ? patch.id! : edge.from,
-          to: edge.to === targetId ? patch.id! : edge.to,
-        })),
-      )
-    }
   }
 
   function deleteNode(targetId: string) {
@@ -70,8 +60,6 @@ function App() {
   function deleteEdge(edgeId: string) {
     setEdges((prevEdges) => prevEdges.filter((edge) => edge.id !== edgeId))
   }
-
-  const rankedResponse = useMemo(() => result, [result])
 
   const canEvaluate = nodes.length > 0 && !isEvaluating
 
@@ -164,7 +152,7 @@ function App() {
         </div>
         <section>
           <ResultPanel
-            result={rankedResponse}
+            result={result}
             nodes={nodes}
             isLoading={isEvaluating}
             errorMessage={requestError}

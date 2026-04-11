@@ -157,6 +157,9 @@ func validateInput(graph domain.Graph, params domain.Params) []string {
 		if n.Label == "" {
 			errs = append(errs, fmt.Sprintf("node[%d] (%s) label must not be empty", i, n.ID))
 		}
+		if n.Kind != domain.NodeKindClaim && n.Kind != domain.NodeKindEvidence {
+			errs = append(errs, fmt.Sprintf("node[%d] (%s) kind must be claim or evidence", i, n.ID))
+		}
 	}
 
 	for i, edge := range graph.Edges {

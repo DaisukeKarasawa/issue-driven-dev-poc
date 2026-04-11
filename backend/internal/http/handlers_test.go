@@ -3,12 +3,24 @@ package httpapi
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
+	"dialecticlab/backend/internal/domain"
 	"dialecticlab/backend/internal/eval"
 )
+
+type stubEvaluator struct {
+	result eval.Result
+	err    error
+}
+
+func (s stubEvaluator) Evaluate(_ domain.Graph, _ domain.Params) (eval.Result, error) {
+	return s.result, s.err
+}
 
 func TestHealthEndpoint(t *testing.T) {
 	router := NewRouter(eval.NewEngine())
@@ -116,5 +128,89 @@ func TestEvaluateEndpointValidationFailure(t *testing.T) {
 	errorsField, ok := diagnostics["errors"].([]any)
 	if !ok || len(errorsField) == 0 {
 		t.Fatalf("expected non-empty diagnostics.errors, got %v", diagnostics["errors"])
+	}
+}
+
+func TestEvaluateEndpointRejectsUnknownFields(t *testing.T) {
+	router := NewRouter(eval.NewEngine())
+	body := []byte(`{"nodes":[{"id":"a","label":"Node A","kind":"claim"}],"edges":[],"params":{},"extra":"nope"}`)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/evaluate", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var resp APIErrorResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode error response: %v", err)
+	}
+
+	if resp.Message != "invalid JSON body" {
+		t.Fatalf("expected invalid JSON message, got %q", resp.Message)
+	}
+	if len(resp.Diagnostics.Errors) == 0 || !strings.Contains(resp.Diagnostics.Errors[0], "unknown field") {
+		t.Fatalf("expected unknown field diagnostics, got %v", resp.Diagnostics.Errors)
+	}
+}
+
+func TestEvaluateEndpointRejectsOversizedBody(t *testing.T) {
+	router := NewRouter(eval.NewEngine())
+	largeLabel := strings.Repeat("x", int(maxEvaluateRequestBodyBytes))
+	payload := map[string]any{
+		"nodes": []map[string]any{
+			{"id": "a", "label": largeLabel, "kind": "claim"},
+		},
+		"edges": []map[string]any{},
+	}
+	bodyBytes, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("failed to marshal payload: %v", err)
+	}
+	if int64(len(bodyBytes)) <= maxEvaluateRequestBodyBytes {
+		t.Fatalf("expected oversized payload, got %d bytes", len(bodyBytes))
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/evaluate", bytes.NewReader(bodyBytes))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("expected status 413, got %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestEvaluateEndpointDoesNotLeakInternalErrors(t *testing.T) {
+	handlers := NewHandlers(stubEvaluator{err: errors.New("internal failure detail")})
+
+	body := []byte(`{"nodes":[{"id":"a","label":"Node A","kind":"claim"}],"edges":[],"params":{}}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/evaluate", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	handlers.Evaluate(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected status 500, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), "internal failure detail") {
+		t.Fatalf("response leaked internal error details: %s", rec.Body.String())
+	}
+
+	var resp APIErrorResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode error response: %v", err)
+	}
+	if resp.Message != "failed to evaluate graph" {
+		t.Fatalf("unexpected message: %q", resp.Message)
+	}
+	if len(resp.Diagnostics.Errors) != 0 {
+		t.Fatalf("expected no diagnostics errors for internal failure, got %v", resp.Diagnostics.Errors)
 	}
 }

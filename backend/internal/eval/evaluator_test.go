@@ -1,6 +1,7 @@
 package eval
 
 import (
+	"strings"
 	"testing"
 
 	"dialecticlab/backend/internal/domain"
@@ -111,6 +112,38 @@ func TestInvalidGraphRejected(t *testing.T) {
 	}
 	if len(validationErr.Messages) == 0 {
 		t.Fatal("expected validation messages to be non-empty")
+	}
+}
+
+func TestInvalidNodeKindRejected(t *testing.T) {
+	engine := NewEngine()
+	graph := domain.Graph{
+		Nodes: []domain.Node{
+			{ID: "A", Label: "A", Kind: domain.NodeKind("unknown")},
+		},
+		Edges: []domain.Edge{},
+	}
+	params := domain.Params{Damping: 0.3, Epsilon: 1e-6, MaxIterations: 200, Baseline: 0.5}
+
+	_, err := engine.Evaluate(graph, params)
+	if err == nil {
+		t.Fatal("expected validation error, got nil")
+	}
+
+	validationErr, ok := IsValidationError(err)
+	if !ok {
+		t.Fatalf("expected validation error type, got: %T", err)
+	}
+
+	found := false
+	for _, message := range validationErr.Messages {
+		if strings.Contains(message, "kind must be claim or evidence") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected kind validation message, got %v", validationErr.Messages)
 	}
 }
 

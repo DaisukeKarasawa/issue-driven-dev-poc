@@ -2,19 +2,28 @@ package httpapi
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
+	"log"
 	"net/http"
 
 	"dialecticlab/backend/internal/domain"
 	"dialecticlab/backend/internal/eval"
 )
 
-type Handlers struct {
-	engine *eval.Engine
+const maxEvaluateRequestBodyBytes int64 = 1 << 20
+
+type Evaluator interface {
+	Evaluate(graph domain.Graph, params domain.Params) (eval.Result, error)
 }
 
-func NewHandlers(engine *eval.Engine) *Handlers {
-	return &Handlers{engine: engine}
+type Handlers struct {
+	evaluator Evaluator
+}
+
+func NewHandlers(evaluator Evaluator) *Handlers {
+	return &Handlers{evaluator: evaluator}
 }
 
 func (h *Handlers) Health(w http.ResponseWriter, _ *http.Request) {
@@ -27,13 +36,23 @@ func (h *Handlers) Evaluate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	r.Body = http.MaxBytesReader(w, r.Body, maxEvaluateRequestBodyBytes)
+	defer r.Body.Close()
+
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+
 	var req EvaluateRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid JSON body", []string{err.Error()})
+	if err := decoder.Decode(&req); err != nil {
+		writeJSONDecodeError(w, err)
+		return
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		writeError(w, http.StatusBadRequest, "invalid JSON body", []string{"request body must contain a single JSON object"})
 		return
 	}
 
-	result, err := h.engine.Evaluate(domain.Graph{
+	result, err := h.evaluator.Evaluate(domain.Graph{
 		Nodes: req.Nodes,
 		Edges: req.Edges,
 	}, req.Params.ToDomain())
@@ -43,11 +62,27 @@ func (h *Handlers) Evaluate(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		writeError(w, http.StatusInternalServerError, "failed to evaluate graph", []string{err.Error()})
+		log.Printf("evaluation failed: %v", err)
+		writeError(w, http.StatusInternalServerError, "failed to evaluate graph", []string{})
 		return
 	}
 
 	writeJSON(w, http.StatusOK, result)
+}
+
+func writeJSONDecodeError(w http.ResponseWriter, err error) {
+	var maxBytesErr *http.MaxBytesError
+	if errors.As(err, &maxBytesErr) {
+		writeError(
+			w,
+			http.StatusRequestEntityTooLarge,
+			"request body too large",
+			[]string{fmt.Sprintf("max request size is %d bytes", maxEvaluateRequestBodyBytes)},
+		)
+		return
+	}
+
+	writeError(w, http.StatusBadRequest, "invalid JSON body", []string{err.Error()})
 }
 
 func writeMethodNotAllowed(w http.ResponseWriter, allowedMethod string) {
