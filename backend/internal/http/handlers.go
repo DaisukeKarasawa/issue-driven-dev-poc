@@ -7,10 +7,14 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"reflect"
 
 	"dialecticlab/backend/internal/domain"
 	"dialecticlab/backend/internal/eval"
 )
+
+// ErrNilEvaluator is returned by NewHandlers when the evaluator argument is nil.
+var ErrNilEvaluator = errors.New("httpapi: evaluator must not be nil")
 
 const maxEvaluateRequestBodyBytes int64 = 1 << 20
 
@@ -22,8 +26,16 @@ type Handlers struct {
 	evaluator Evaluator
 }
 
-func NewHandlers(evaluator Evaluator) *Handlers {
-	return &Handlers{evaluator: evaluator}
+func NewHandlers(evaluator Evaluator) (*Handlers, error) {
+	if evaluator == nil {
+		return nil, ErrNilEvaluator
+	}
+	// Typed nil pointers (e.g. var e *eval.Engine; NewHandlers(e)) are non-nil as interfaces.
+	ev := reflect.ValueOf(evaluator)
+	if (ev.Kind() == reflect.Pointer || ev.Kind() == reflect.Interface) && ev.IsNil() {
+		return nil, ErrNilEvaluator
+	}
+	return &Handlers{evaluator: evaluator}, nil
 }
 
 func (h *Handlers) Health(w http.ResponseWriter, _ *http.Request) {

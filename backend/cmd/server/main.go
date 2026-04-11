@@ -17,9 +17,13 @@ func main() {
 	}
 
 	engine := eval.NewEngine()
+	handler, err := httpapi.NewRouter(engine)
+	if err != nil {
+		log.Fatalf("router: %v", err)
+	}
 	server := &http.Server{
 		Addr:              ":" + port,
-		Handler:           httpapi.NewRouter(engine),
+		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      30 * time.Second,

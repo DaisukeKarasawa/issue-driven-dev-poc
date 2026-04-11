@@ -1,6 +1,7 @@
 package eval
 
 import (
+	"math"
 	"strings"
 	"testing"
 
@@ -144,6 +145,74 @@ func TestInvalidNodeKindRejected(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("expected kind validation message, got %v", validationErr.Messages)
+	}
+}
+
+func TestNonFiniteEdgeWeightRejected(t *testing.T) {
+	engine := NewEngine()
+	graph := domain.Graph{
+		Nodes: []domain.Node{
+			{ID: "A", Label: "A", Kind: domain.NodeKindClaim},
+			{ID: "B", Label: "B", Kind: domain.NodeKindClaim},
+		},
+		Edges: []domain.Edge{
+			{From: "A", To: "B", Relation: domain.RelationSupport, Weight: math.NaN()},
+		},
+	}
+	params := domain.Params{Damping: 0.3, Epsilon: 1e-6, MaxIterations: 200, Baseline: 0.5}
+
+	_, err := engine.Evaluate(graph, params)
+	if err == nil {
+		t.Fatal("expected validation error, got nil")
+	}
+	validationErr, ok := IsValidationError(err)
+	if !ok {
+		t.Fatalf("expected validation error type, got: %T", err)
+	}
+	found := false
+	for _, message := range validationErr.Messages {
+		if strings.Contains(message, "edge[0] weight must be finite") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected finite weight message, got %v", validationErr.Messages)
+	}
+}
+
+func TestNonFiniteParamsRejected(t *testing.T) {
+	engine := NewEngine()
+	graph := domain.Graph{
+		Nodes: []domain.Node{
+			{ID: "A", Label: "A", Kind: domain.NodeKindClaim},
+		},
+		Edges: []domain.Edge{},
+	}
+	params := domain.Params{
+		Damping:       math.Inf(1),
+		Epsilon:       1e-6,
+		MaxIterations: 200,
+		Baseline:      0.5,
+	}
+
+	_, err := engine.Evaluate(graph, params)
+	if err == nil {
+		t.Fatal("expected validation error, got nil")
+	}
+	validationErr, ok := IsValidationError(err)
+	if !ok {
+		t.Fatalf("expected validation error type, got: %T", err)
+	}
+	found := false
+	for _, message := range validationErr.Messages {
+		if strings.Contains(message, "params.damping must be finite") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected finite damping message, got %v", validationErr.Messages)
 	}
 }
 

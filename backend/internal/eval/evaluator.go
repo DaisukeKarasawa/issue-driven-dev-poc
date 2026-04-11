@@ -180,7 +180,9 @@ func validateInput(graph domain.Graph, params domain.Params) []string {
 		if edge.Relation != domain.RelationSupport && edge.Relation != domain.RelationAttack {
 			errs = append(errs, fmt.Sprintf("edge[%d] relation must be support or attack", i))
 		}
-		if edge.Weight < 0 || edge.Weight > 1 {
+		if math.IsNaN(edge.Weight) || math.IsInf(edge.Weight, 0) {
+			errs = append(errs, fmt.Sprintf("edge[%d] weight must be finite", i))
+		} else if edge.Weight < 0 || edge.Weight > 1 {
 			errs = append(errs, fmt.Sprintf("edge[%d] weight must be in [0,1]", i))
 		}
 	}
@@ -192,16 +194,22 @@ func validateInput(graph domain.Graph, params domain.Params) []string {
 func validateParams(params domain.Params) []string {
 	var errs []string
 
-	if params.Damping < 0 || params.Damping > 1 {
+	if math.IsNaN(params.Damping) || math.IsInf(params.Damping, 0) {
+		errs = append(errs, "params.damping must be finite")
+	} else if params.Damping < 0 || params.Damping > 1 {
 		errs = append(errs, "params.damping must be in [0,1]")
 	}
-	if params.Epsilon <= 0 || params.Epsilon > 1 {
+	if math.IsNaN(params.Epsilon) || math.IsInf(params.Epsilon, 0) {
+		errs = append(errs, "params.epsilon must be finite")
+	} else if params.Epsilon <= 0 || params.Epsilon > 1 {
 		errs = append(errs, "params.epsilon must be > 0 and <= 1")
 	}
 	if params.MaxIterations <= 0 || params.MaxIterations > 10000 {
 		errs = append(errs, "params.maxIterations must be in [1, 10000]")
 	}
-	if params.Baseline < 0 || params.Baseline > 1 {
+	if math.IsNaN(params.Baseline) || math.IsInf(params.Baseline, 0) {
+		errs = append(errs, "params.baseline must be finite")
+	} else if params.Baseline < 0 || params.Baseline > 1 {
 		errs = append(errs, "params.baseline must be in [0,1]")
 	}
 	return errs

@@ -22,8 +22,38 @@ func (s stubEvaluator) Evaluate(_ domain.Graph, _ domain.Params) (eval.Result, e
 	return s.result, s.err
 }
 
+func mustRouter(t *testing.T, engine *eval.Engine) http.Handler {
+	t.Helper()
+	router, err := NewRouter(engine)
+	if err != nil {
+		t.Fatalf("NewRouter: %v", err)
+	}
+	return router
+}
+
+func TestNewHandlersRejectsNilEvaluator(t *testing.T) {
+	_, err := NewHandlers(nil)
+	if err == nil {
+		t.Fatal("expected error for nil evaluator")
+	}
+	if !errors.Is(err, ErrNilEvaluator) {
+		t.Fatalf("expected ErrNilEvaluator, got %v", err)
+	}
+}
+
+func TestNewHandlersRejectsTypedNilEnginePointer(t *testing.T) {
+	var engine *eval.Engine
+	_, err := NewHandlers(engine)
+	if err == nil {
+		t.Fatal("expected error for typed-nil *eval.Engine")
+	}
+	if !errors.Is(err, ErrNilEvaluator) {
+		t.Fatalf("expected ErrNilEvaluator, got %v", err)
+	}
+}
+
 func TestHealthEndpoint(t *testing.T) {
-	router := NewRouter(eval.NewEngine())
+	router := mustRouter(t, eval.NewEngine())
 	req := httptest.NewRequest(http.MethodGet, "/api/health", nil)
 	rec := httptest.NewRecorder()
 
@@ -44,7 +74,7 @@ func TestHealthEndpoint(t *testing.T) {
 }
 
 func TestEvaluateEndpointSuccess(t *testing.T) {
-	router := NewRouter(eval.NewEngine())
+	router := mustRouter(t, eval.NewEngine())
 
 	payload := map[string]any{
 		"nodes": []map[string]any{
@@ -90,7 +120,7 @@ func TestEvaluateEndpointSuccess(t *testing.T) {
 }
 
 func TestEvaluateEndpointValidationFailure(t *testing.T) {
-	router := NewRouter(eval.NewEngine())
+	router := mustRouter(t, eval.NewEngine())
 	payload := map[string]any{
 		"nodes": []map[string]any{
 			{"id": "a", "label": "Node A", "kind": "claim"},
@@ -132,7 +162,7 @@ func TestEvaluateEndpointValidationFailure(t *testing.T) {
 }
 
 func TestEvaluateEndpointRejectsUnknownFields(t *testing.T) {
-	router := NewRouter(eval.NewEngine())
+	router := mustRouter(t, eval.NewEngine())
 	body := []byte(`{"nodes":[{"id":"a","label":"Node A","kind":"claim"}],"edges":[],"params":{},"extra":"nope"}`)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/evaluate", bytes.NewReader(body))
@@ -159,7 +189,7 @@ func TestEvaluateEndpointRejectsUnknownFields(t *testing.T) {
 }
 
 func TestEvaluateEndpointRejectsOversizedBody(t *testing.T) {
-	router := NewRouter(eval.NewEngine())
+	router := mustRouter(t, eval.NewEngine())
 	largeLabel := strings.Repeat("x", int(maxEvaluateRequestBodyBytes))
 	payload := map[string]any{
 		"nodes": []map[string]any{
@@ -187,7 +217,10 @@ func TestEvaluateEndpointRejectsOversizedBody(t *testing.T) {
 }
 
 func TestEvaluateEndpointDoesNotLeakInternalErrors(t *testing.T) {
-	handlers := NewHandlers(stubEvaluator{err: errors.New("internal failure detail")})
+	handlers, err := NewHandlers(stubEvaluator{err: errors.New("internal failure detail")})
+	if err != nil {
+		t.Fatalf("NewHandlers: %v", err)
+	}
 
 	body := []byte(`{"nodes":[{"id":"a","label":"Node A","kind":"claim"}],"edges":[],"params":{}}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/evaluate", bytes.NewReader(body))
