@@ -13,6 +13,22 @@ function numberValue(value: string, fallback: number): number {
   return parsed
 }
 
+function integerValue(
+  value: string,
+  fallback: number,
+  min: number,
+  max: number,
+): number {
+  const rounded = Math.round(numberValue(value, fallback))
+  if (rounded < min) {
+    return min
+  }
+  if (rounded > max) {
+    return max
+  }
+  return rounded
+}
+
 export function ParameterPanel({ params, onChange }: ParameterPanelProps) {
   return (
     <section className="panel">
@@ -81,7 +97,12 @@ export function ParameterPanel({ params, onChange }: ParameterPanelProps) {
             onChange={(event) =>
               onChange({
                 ...params,
-                maxIterations: numberValue(event.target.value, params.maxIterations),
+                maxIterations: integerValue(
+                  event.target.value,
+                  params.maxIterations,
+                  1,
+                  2000,
+                ),
               })
             }
           />
